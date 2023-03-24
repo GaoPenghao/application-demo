@@ -48,6 +48,7 @@ cc_library(
         "//modules/planning/common:path_decision",
         "//modules/planning/common:st_graph_data",
         "//modules/planning/common/speed:speed_data",
+        "//modules/planning/common/util:print_debug_info",
         "//modules/common_msgs/planning_msgs:planning_cc_proto",
         "//modules/planning/proto:planning_config_cc_proto",
     ],

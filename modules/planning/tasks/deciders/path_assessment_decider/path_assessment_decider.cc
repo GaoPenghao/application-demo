@@ -21,8 +21,9 @@
 #include <memory>
 #include <utility>
 
-#include "modules/common/configs/vehicle_config_helper.h"
 #include "modules/common_msgs/basic_msgs/pnc_point.pb.h"
+
+#include "modules/common/configs/vehicle_config_helper.h"
 #include "modules/map/hdmap/hdmap_util.h"
 #include "modules/planning/common/planning_context.h"
 #include "modules/planning/tasks/deciders/path_bounds_decider/path_bounds_decider.h"
@@ -793,6 +794,15 @@ void PathAssessmentDecider::RecordDebugInfo(
   ptr_optimized_path->set_name(debug_name);
   ptr_optimized_path->mutable_path_point()->CopyFrom(
       {path_points.begin(), path_points.end()});
+
+  // for plot_sl_qp.py
+  const double veh_width =
+      common::VehicleConfigHelper::GetConfig().vehicle_param().width();
+  for (auto pt : path_data.frenet_frame_path()) {
+    AINFO << "plot_path_:" << pt.s() << "," << pt.l();
+    AINFO << "plot_veh_right_:" << pt.s() << "," << pt.l() - 0.5 * veh_width;
+    AINFO << "plot_veh_left_:" << pt.s() << "," << pt.l() + 0.5 * veh_width;
+  }
 }
 
 int ContainsOutOnReverseLane(

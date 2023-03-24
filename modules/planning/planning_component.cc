@@ -122,7 +122,7 @@ bool PlanningComponent::Proc(
     const std::shared_ptr<localization::LocalizationEstimate>&
         localization_estimate) {
   ACHECK(prediction_obstacles != nullptr);
-
+  AINFO << "just test ******";
   // check and process possible rerouting request
   CheckRerouting();
 

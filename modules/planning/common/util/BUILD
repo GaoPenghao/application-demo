@@ -45,4 +45,13 @@ cc_library(
     ],
 )
 
+cc_library(
+    name = "print_debug_info",
+    hdrs = ["print_debug_info.h"],
+    copts = PLANNING_COPTS,
+    deps = [
+        "//cyber",
+    ],
+)
+
 cpplint()

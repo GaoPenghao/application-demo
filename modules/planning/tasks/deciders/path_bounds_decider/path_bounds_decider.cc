@@ -61,6 +61,16 @@ Status PathBoundsDecider::Process(
   CHECK_NOTNULL(frame);
   CHECK_NOTNULL(reference_line_info);
 
+  // for plot_sl_qp.py
+  for (auto obs : reference_line_info->path_decision()->obstacles().Items()) {
+    std::string id = obs->Id();
+    for (auto xy_pt : obs->PerceptionBoundingBox().GetAllCorners()) {
+      common::SLPoint sl_point;
+      reference_line_info->reference_line().XYToSL(xy_pt, &sl_point);
+      AINFO << "plot_obs_" << id << ":" << sl_point.s() << "," << sl_point.l();
+    }
+  }
+
   // Skip the path boundary decision if reusing the path.
   if (FLAGS_enable_skip_path_tasks && reference_line_info->path_reusable()) {
     return Status::OK();
@@ -251,7 +261,9 @@ Status PathBoundsDecider::Process(
         // regular_self_path_bound = regular_path_bound;
         break;
     }
-    // RecordDebugInfo(regular_path_bound, "", reference_line_info);
+    RecordDebugInfo(regular_path_bound,
+                    absl::StrCat("regular/", path_label, "/", borrow_lane_type),
+                    reference_line_info);
     candidate_path_boundaries.back().set_label(
         absl::StrCat("regular/", path_label, "/", borrow_lane_type));
     candidate_path_boundaries.back().set_blocking_obstacle_id(
@@ -1929,6 +1941,12 @@ void PathBoundsDecider::RecordDebugInfo(
     frenet_frame_right_boundaries.push_back(frenet_frame_point);
     frenet_frame_point.set_l(std::get<2>(path_bound_point));
     frenet_frame_left_boundaries.push_back(frenet_frame_point);
+
+    // for plot_sl_qp.py
+    AINFO << "plot_min_" << debug_name << ":" << std::get<0>(path_bound_point)
+          << "," << std::get<1>(path_bound_point);
+    AINFO << "plot_max_" << debug_name << ":" << std::get<0>(path_bound_point)
+          << "," << std::get<2>(path_bound_point);
   }
 
   auto frenet_frame_left_path =

@@ -47,6 +47,9 @@ DpStCost::DpStCost(const DpStSpeedOptimizerConfig& config, const double total_t,
   int index = 0;
   for (const auto& obstacle : obstacles) {
     boundary_map_[obstacle->path_st_boundary().id()] = index++;
+    if (!obstacle->path_st_boundary().IsEmpty()) {
+      obstacle->path_st_boundary().PrintDebug(std::string("dp_st_boundary"));
+    }
   }
 
   AddToKeepClearRange(obstacles);
