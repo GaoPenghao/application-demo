@@ -12,6 +12,7 @@
   <depend>bazel-extend-tools-dev</depend>
   <depend type="binary" repo_name="dreamview">dreamview-dev</depend>
   <depend type="binary" repo_name="routing">routing-dev</depend>
+  <depend type="binary" repo_name="prediction">prediction-dev</depend>
   <depend type="binary" repo_name="task-manager">task-manager-dev</depend>
   <depend type="binary" repo_name="monitor">monitor-dev</depend>
   <depend type="src" repo_name="planning">planning-dev</depend>
