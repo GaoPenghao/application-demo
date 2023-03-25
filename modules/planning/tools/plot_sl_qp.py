@@ -42,8 +42,8 @@ def plot_frame(fig, ax, lines, line_st_num, line_ed_num):
     print( 'frame seq num: ' + frame_seq)
 
     # plot curve from point vectors
-    ax_title = 'seq: ' + frame_seq
-    fig.suptitle(ax_title)
+    # ax_title = 'seq: ' + frame_seq
+    # fig.suptitle(ax_title)
     plotter = dict()
     for i in range(line_st_num, line_ed_num):
         if "plot_" in lines[i]:
