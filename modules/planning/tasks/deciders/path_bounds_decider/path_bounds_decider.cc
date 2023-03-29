@@ -38,6 +38,8 @@ namespace planning {
 using apollo::common::ErrorCode;
 using apollo::common::Status;
 using apollo::common::VehicleConfigHelper;
+using apollo::common::math::Box2d;
+using apollo::common::math::Vec2d;
 using apollo::hdmap::HDMapUtil;
 using apollo::hdmap::JunctionInfo;
 
@@ -63,6 +65,9 @@ Status PathBoundsDecider::Process(
 
   // for plot_sl_qp.py
   for (auto obs : reference_line_info->path_decision()->obstacles().Items()) {
+    if (obs->IsVirtual()) {
+      continue;
+    }
     std::string id = obs->Id();
     for (auto xy_pt : obs->PerceptionBoundingBox().GetAllCorners()) {
       common::SLPoint sl_point;
@@ -297,6 +302,7 @@ void PathBoundsDecider::InitPathBoundsDecider(
   // ADC s/l info.
   auto adc_sl_info = reference_line.ToFrenetFrame(planning_start_point);
   adc_frenet_s_ = adc_sl_info.first[0];
+  AINFO << "adc frenet s = " << adc_frenet_s_;
   adc_frenet_l_ = adc_sl_info.second[0];
   adc_frenet_sd_ = adc_sl_info.first[1];
   adc_frenet_ld_ = adc_sl_info.second[1] * adc_frenet_sd_;
@@ -380,7 +386,7 @@ Status PathBoundsDecider::GenerateRegularPathBound(
   // 4. Adjust the boundary considering dynamic obstacles
   // TODO(all): may need to implement this in the future.
 
-  ADEBUG << "Completed generating path boundaries.";
+  AINFO << "Completed generating path boundaries.";
   return Status::OK();
 }
 
@@ -1422,7 +1428,7 @@ bool PathBoundsDecider::GetBoundaryFromStaticObstacles(
   // Preprocessing.
   auto indexed_obstacles = path_decision.obstacles();
   auto sorted_obstacles = SortObstaclesForSweepLine(indexed_obstacles);
-  ADEBUG << "There are " << sorted_obstacles.size() << " obstacles.";
+  AINFO << "There are " << sorted_obstacles.size() << " obstacles.";
   double center_line = adc_frenet_l_;
   size_t obs_idx = 0;
   int path_blocked_idx = -1;
@@ -1536,6 +1542,13 @@ bool PathBoundsDecider::GetBoundaryFromStaticObstacles(
     }
   }
 
+  // 修正 blocking_obstacle_id
+  if (!blocking_obstacle_id->empty() &&
+      blocking_obstacle_id->find('#') != std::string::npos) {
+    auto pos = blocking_obstacle_id->find_first_of('#');
+    *blocking_obstacle_id = blocking_obstacle_id->substr(0, pos);
+  }
+
   TrimPathBounds(path_blocked_idx, path_boundaries);
 
   return true;
@@ -1556,17 +1569,122 @@ std::vector<ObstacleEdge> PathBoundsDecider::SortObstaclesForSweepLine(
     if (obstacle->PerceptionSLBoundary().end_s() < adc_frenet_s_) {
       continue;
     }
-    // Decompose each obstacle's rectangle into two edges: one at
-    // start_s; the other at end_s.
-    const auto obstacle_sl = obstacle->PerceptionSLBoundary();
-    sorted_obstacles.emplace_back(
-        1, obstacle_sl.start_s() - FLAGS_obstacle_lon_start_buffer,
-        obstacle_sl.start_l() - FLAGS_obstacle_lat_buffer,
-        obstacle_sl.end_l() + FLAGS_obstacle_lat_buffer, obstacle->Id());
-    sorted_obstacles.emplace_back(
-        0, obstacle_sl.end_s() + FLAGS_obstacle_lon_end_buffer,
-        obstacle_sl.start_l() - FLAGS_obstacle_lat_buffer,
-        obstacle_sl.end_l() + FLAGS_obstacle_lat_buffer, obstacle->Id());
+
+    if (obstacle->IsStatic() ||
+        obstacle->speed() < FLAGS_static_obstacle_speed_threshold) {
+      // 1. for static obstacles
+      // Decompose each obstacle's rectangle into two edges: one at
+      // start_s; the other at end_s.
+      const auto obstacle_sl = obstacle->PerceptionSLBoundary();
+      sorted_obstacles.emplace_back(
+          1, obstacle_sl.start_s() - FLAGS_obstacle_lon_start_buffer,
+          obstacle_sl.start_l() - FLAGS_obstacle_lat_buffer,
+          obstacle_sl.end_l() + FLAGS_obstacle_lat_buffer, obstacle->Id());
+      sorted_obstacles.emplace_back(
+          0, obstacle_sl.end_s() + FLAGS_obstacle_lon_end_buffer,
+          obstacle_sl.start_l() - FLAGS_obstacle_lat_buffer,
+          obstacle_sl.end_l() + FLAGS_obstacle_lat_buffer, obstacle->Id());
+    } else {
+      // 2. for dynamic obstacles
+      // Go through every occurrence of the obstacle at all timesteps, and
+      // check the overlapping s one by one.
+      AINFO << "Processing dynamic obstacle ...";
+      const auto& obs_trajectory = obstacle->Trajectory();
+      AINFO << "obs_trajectory size is: "
+            << obs_trajectory.trajectory_point_size();
+      bool found_overlap = false;
+      for (int i = 0; i < obs_trajectory.trajectory_point_size(); i++) {
+        const auto& obs_traj_pt = obs_trajectory.trajectory_point().at(i);
+        const Box2d& obs_box = obstacle->GetBoundingBox(obs_traj_pt);
+        SLBoundary obs_sl_boundary;
+        reference_line_info_->reference_line().GetSLBoundary(obs_box,
+                                                             &obs_sl_boundary);
+        const double delta_t = obs_traj_pt.relative_time();
+        common::SLPoint obs_pt_sl;
+        reference_line_info_->reference_line().XYToSL(obs_traj_pt.path_point(),
+                                                      &obs_pt_sl);
+        AINFO << "relative time is: " << delta_t;
+        AINFO << "obs position s = " << obs_pt_sl.s();
+
+        // 根据梯形速度曲线确定自车在 delta_t 时刻的位置s
+        double adc_s = 0;
+        const double init_speed = frame_->PlanningStartPoint().v();
+        const double cruise_speed = reference_line_info_->GetCruiseSpeed();
+        AINFO << "cruise speed = " << cruise_speed;
+        double acc_t =
+            cruise_speed / FLAGS_longitudinal_acceleration_upper_bound;
+        double acc_s = 0.5 * acc_t * (init_speed + cruise_speed);
+        if (delta_t < acc_t) {
+          adc_s = init_speed * delta_t +
+                  0.5 * FLAGS_longitudinal_acceleration_upper_bound * delta_t *
+                      delta_t;
+        } else {
+          adc_s = acc_s + cruise_speed * (delta_t - acc_t);
+        }
+        adc_s += adc_frenet_s_;
+        AINFO << "adc position s = " << adc_s;
+
+        // 在 s 处生成自车的 boundingbox
+        const auto& adc_param =
+            common::VehicleConfigHelper::GetConfig().vehicle_param();
+        const auto& ref_pt =
+            reference_line_info_->reference_line().GetReferencePoint(adc_s);
+        Vec2d position(ref_pt.x(), ref_pt.y());
+        Vec2d vec_to_center((adc_param.front_edge_to_center() -
+                             adc_param.back_edge_to_center()) /
+                                2,
+                            (adc_param.left_edge_to_center() -
+                             adc_param.right_edge_to_center()) /
+                                2);
+        Vec2d adc_center(position + vec_to_center.rotate(ref_pt.Angle()));
+        Box2d adc_box(adc_center, ref_pt.Angle(), adc_param.length(),
+                      adc_param.width());
+        SLBoundary adc_sl_boundary;
+        reference_line_info_->reference_line().GetSLBoundary(adc_box,
+                                                             &adc_sl_boundary);
+
+        // 检查 adc 和 obs 在 s 坐标上是否有 overlap
+        const double adc_s_start = adc_sl_boundary.start_s();
+        const double adc_s_end = adc_sl_boundary.end_s();
+        const double obs_s_start = obs_sl_boundary.start_s();
+        const double obs_s_end = obs_sl_boundary.end_s();
+        double obs_start_to_adc_end = obs_s_start - adc_s_end;
+        double obs_end_to_adc_start = obs_s_end - adc_s_start;
+        if (obs_start_to_adc_end * obs_end_to_adc_start < 0) {
+          // 存在 overlap
+          AINFO << "overlap occur";
+          std::string obs_id = obstacle->Id() + "#" + std::to_string(i);
+          sorted_obstacles.emplace_back(
+              1, obs_s_start - FLAGS_obstacle_lon_start_buffer,
+              obs_sl_boundary.start_l() - FLAGS_obstacle_lat_buffer,
+              obs_sl_boundary.end_l() + FLAGS_obstacle_lat_buffer, obs_id);
+          sorted_obstacles.emplace_back(
+              0, obs_s_end + FLAGS_obstacle_lon_end_buffer,
+              obs_sl_boundary.start_l() - FLAGS_obstacle_lat_buffer,
+              obs_sl_boundary.end_l() + FLAGS_obstacle_lat_buffer, obs_id);
+          // 此刻有 overlap，如果之前不存在 overlap，则认为刚开始
+          //   AINFO << "overlap occur";
+          //   if (!found_overlap) {
+          //     sorted_obstacles.emplace_back(
+          //         1, obs_s_start - FLAGS_obstacle_lon_start_buffer,
+          //         obs_sl_boundary.start_l() - FLAGS_obstacle_lat_buffer,
+          //         obs_sl_boundary.end_l() + FLAGS_obstacle_lat_buffer,
+          //         obstacle->Id());
+          //     found_overlap = true;
+          //   }
+          // } else {
+          //   // 此刻无 overlap，如果之前存在 overlap，则认为到此为止结束
+          //   if (found_overlap) {
+          //     sorted_obstacles.emplace_back(
+          //         0, obs_s_end + FLAGS_obstacle_lon_end_buffer,
+          //         obs_sl_boundary.start_l() - FLAGS_obstacle_lat_buffer,
+          //         obs_sl_boundary.end_l() + FLAGS_obstacle_lat_buffer,
+          //         obstacle->Id());
+          //     break;
+          //   }
+        }
+      }
+    }
   }
 
   // Sort.
@@ -1794,8 +1912,8 @@ std::vector<std::vector<bool>> PathBoundsDecider::DecidePassDirections(
 double PathBoundsDecider::GetBufferBetweenADCCenterAndEdge() {
   double adc_half_width =
       VehicleConfigHelper::GetConfig().vehicle_param().width() / 2.0;
-  // TODO(all): currently it's a fixed number. But it can take into account many
-  // factors such as: ADC length, possible turning angle, speed, etc.
+  // TODO(all): currently it's a fixed number. But it can take into account
+  // many factors such as: ADC length, possible turning angle, speed, etc.
   static constexpr double kAdcEdgeBuffer = 0.0;
 
   return (adc_half_width + kAdcEdgeBuffer);

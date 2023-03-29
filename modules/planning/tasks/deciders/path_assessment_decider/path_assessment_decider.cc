@@ -111,6 +111,7 @@ Status PathAssessmentDecider::Process(
     }
 
     // find blocking_obstacle_on_selflane, to be used for lane selection later
+    // TODO 这里 blocking_obstacle_on_selflane 后面如何用？
     if (curr_path_data.path_label().find("self") != std::string::npos) {
       const auto blocking_obstacle_id = curr_path_data.blocking_obstacle_id();
       blocking_obstacle_on_selflane =
@@ -275,6 +276,8 @@ bool ComparePathData(const PathData& lhs, const PathData& rhs,
         kSelfPathLengthComparisonTolerance) {
       return lhs_path_length > rhs_path_length;
     } else {
+      // TODO 如果二者都是 selflane 且长度差较小，会不会有问题？
+      // 不会，同等类型的 path(regular 或者 fallback)，self 只有一条
       return lhs_on_selflane;
     }
   } else {
@@ -496,6 +499,11 @@ bool PathAssessmentDecider::IsCollidingWithStaticObstacles(
   for (const auto* obstacle : indexed_obstacles.Items()) {
     // Filter out unrelated obstacles.
     if (!IsWithinPathDeciderScopeObstacle(*obstacle)) {
+      continue;
+    }
+    // 滤掉动态障碍物，这部分在路径规划预处理，由速度规划后处理
+    if (!obstacle->IsStatic() ||
+        obstacle->speed() > FLAGS_static_obstacle_speed_threshold) {
       continue;
     }
     // Ignore too small obstacles.

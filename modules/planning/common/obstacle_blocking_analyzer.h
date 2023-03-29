@@ -51,5 +51,11 @@ bool IsBlockingDrivingPathObstacle(const ReferenceLine& reference_line,
 bool IsParkedVehicle(const ReferenceLine& reference_line,
                      const Obstacle* obstacle);
 
+bool IsObstacleFarFromIntersection(const ReferenceLineInfo& reference_line_info,
+                                   const Obstacle* obstacle);
+
+bool IsObstacleWithinDestination(const ReferenceLineInfo& reference_line_info,
+                                 const Obstacle* obstacle);
+
 }  // namespace planning
 }  // namespace apollo

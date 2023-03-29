@@ -35,9 +35,8 @@ bool IsWithinPathDeciderScopeObstacle(const Obstacle& obstacle) {
       obstacle.IsIgnore()) {
     return false;
   }
-  // Obstacle should not be moving obstacle.
-  if (!obstacle.IsStatic() ||
-      obstacle.speed() > FLAGS_static_obstacle_speed_threshold) {
+  // Obstacle's speed should be lower than default_cruise_speed
+  if (obstacle.speed() > FLAGS_default_cruise_speed) {
     return false;
   }
   // TODO(jiacheng):

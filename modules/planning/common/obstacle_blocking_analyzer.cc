@@ -34,6 +34,8 @@ using apollo::hdmap::HDMapUtil;
 
 constexpr double kAdcDistanceThreshold = 35.0;  // unit: m
 constexpr double kObstaclesDistanceThreshold = 15.0;
+constexpr double kIntersectionClearanceDist = 20.0;
+constexpr double kJunctionClearanceDist = 15.0;
 
 bool IsNonmovableObstacle(const ReferenceLineInfo& reference_line_info,
                           const Obstacle& obstacle) {
@@ -102,9 +104,9 @@ bool IsBlockingObstacleToSidePass(const Frame& frame, const Obstacle* obstacle,
     return false;
   }
 
-  // Obstacle is moving.
-  if (!obstacle->IsStatic() || obstacle->speed() > block_obstacle_min_speed) {
-    ADEBUG << " - It is non-static.";
+  // Obstacle is moving fast.
+  if (obstacle->speed() > block_obstacle_min_speed) {
+    ADEBUG << " - It is moving fast";
     return false;
   }
 
@@ -115,9 +117,12 @@ bool IsBlockingObstacleToSidePass(const Frame& frame, const Obstacle* obstacle,
   }
 
   // Obstacle is far away.
-  static constexpr double kAdcDistanceSidePassThreshold = 15.0;
+  static constexpr double kAdcDistanceSidePassThreshold = 25.0;
   if (obstacle->PerceptionSLBoundary().start_s() >
       adc_sl_boundary.end_s() + kAdcDistanceSidePassThreshold) {
+    AINFO << "the dis is "
+          << obstacle->PerceptionSLBoundary().start_s() -
+                 adc_sl_boundary.end_s();
     ADEBUG << " - It is too far ahead.";
     return false;
   }
@@ -133,6 +138,24 @@ bool IsBlockingObstacleToSidePass(const Frame& frame, const Obstacle* obstacle,
   if (!IsBlockingDrivingPathObstacle(reference_line, obstacle)) {
     ADEBUG << " - It is not blocking our way.";
     return false;
+  }
+
+  // Obstacle is not far enough from intersection.
+  if (!IsObstacleFarFromIntersection(reference_line_info, obstacle)) {
+    ADEBUG << " - It is not far enough from intersection.";
+    return false;
+  }
+
+  // Obstacle is not within destination.
+  if (!IsObstacleWithinDestination(reference_line_info, obstacle)) {
+    ADEBUG << " - It is not within destination";
+    return false;
+  }
+
+  // Obstacle is parked obstacle.
+  if (IsParkedVehicle(reference_line_info.reference_line(), obstacle)) {
+    ADEBUG << "It is Parked and NON-MOVABLE.";
+    return true;
   }
 
   // Obstacle is blocked by others too.
@@ -186,8 +209,11 @@ bool IsBlockingDrivingPathObstacle(const ReferenceLine& reference_line,
       VehicleConfigHelper::GetConfig().vehicle_param().width();
   ADEBUG << " (driving width = " << driving_width
          << ", adc_width = " << adc_width << ")";
-  if (driving_width > adc_width + FLAGS_static_obstacle_nudge_l_buffer +
-                          FLAGS_side_pass_driving_width_l_buffer) {
+  double obs_nudge_l_buf = obstacle->IsStatic()
+                               ? FLAGS_static_obstacle_nudge_l_buffer
+                               : FLAGS_nonstatic_obstacle_nudge_l_buffer;
+  if (driving_width >
+      adc_width + obs_nudge_l_buf + FLAGS_side_pass_driving_width_l_buffer) {
     // TODO(jiacheng): make this a GFLAG:
     // side_pass_context_.scenario_config_.min_l_nudge_buffer()
     ADEBUG << "It is NOT blocking our path.";
@@ -229,6 +255,57 @@ bool IsParkedVehicle(const ReferenceLine& reference_line,
 
   bool is_parked = is_on_parking_lane || is_at_road_edge;
   return is_parked && obstacle->IsStatic();
+}
+
+bool IsObstacleFarFromIntersection(const ReferenceLineInfo& reference_line_info,
+                                   const Obstacle* obstacle) {
+  // Get obstacle's s
+  double obstacle_s = obstacle->PerceptionSLBoundary().end_s();
+  ADEBUG << "Obstacle[" << obstacle->Id() << "] is at s = " << obstacle_s;
+  // Get intersection's s and compare with threshold.
+  const auto& first_encountered_overlaps =
+      reference_line_info.FirstEncounteredOverlaps();
+  for (const auto& overlap : first_encountered_overlaps) {
+    ADEBUG << overlap.first << ", " << overlap.second.DebugString();
+    if (overlap.first != ReferenceLineInfo::SIGNAL &&
+        overlap.first != ReferenceLineInfo::STOP_SIGN) {
+      continue;
+    }
+
+    auto distance = overlap.second.start_s - obstacle_s;
+    if (overlap.first == ReferenceLineInfo::SIGNAL ||
+        overlap.first == ReferenceLineInfo::STOP_SIGN) {
+      if (distance < kIntersectionClearanceDist) {
+        ADEBUG << "Too close to signal intersection (" << distance
+               << "m); don't SIDE_PASS.";
+        return false;
+      }
+    } else {
+      if (distance < kJunctionClearanceDist) {
+        ADEBUG << "Too close to overlap_type[" << overlap.first << "] ("
+               << distance << "m); don't SIDE_PASS";
+        return false;
+      }
+    }
+  }
+
+  return true;
+}
+
+bool IsObstacleWithinDestination(const ReferenceLineInfo& reference_line_info,
+                                 const Obstacle* obstacle) {
+  // Get obstacle's s
+  double obstacle_s = obstacle->PerceptionSLBoundary().start_s();
+  double adc_end_s = reference_line_info.AdcSlBoundary().end_s();
+  ADEBUG << "Obstacle[" << obstacle->Id() << "] is at s = " << obstacle_s;
+  ADEBUG << "ADC is at s = " << adc_end_s;
+  ADEBUG << "Destination is at s = "
+         << reference_line_info.SDistanceToDestination() + adc_end_s;
+  if (obstacle_s > adc_end_s + reference_line_info.SDistanceToDestination()) {
+    return false;
+  }
+
+  return true;
 }
 
 }  // namespace planning

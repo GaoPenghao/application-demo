@@ -88,16 +88,31 @@ bool PathLaneBorrowDecider::IsNecessaryToBorrowLane(
     }
 
     // Obstacle condition check for lane-borrowing:
-    if (!IsBlockingObstacleFarFromIntersection(reference_line_info)) {
-      return false;
-    }
+    // if (!IsBlockingObstacleFarFromIntersection(reference_line_info)) {
+    //   return false;
+    // }
     if (!IsLongTermBlockingObstacle()) {
       return false;
     }
-    if (!IsBlockingObstacleWithinDestination(reference_line_info)) {
-      return false;
+    // if (!IsBlockingObstacleWithinDestination(reference_line_info)) {
+    //   return false;
+    // }
+    // if (!IsSidePassableObstacle(reference_line_info)) {
+    //   return false;
+    // }
+
+    bool necessary_to_borrow_lane = false;
+    double block_obs_min_speed = 0.6 * FLAGS_default_cruise_speed;
+    for (auto obs : reference_line_info.path_decision().obstacles().Items()) {
+      double min_front_sidepass_dis = obs->MinRadiusStopDistance(
+          common::VehicleConfigHelper::GetConfig().vehicle_param());
+      if (IsBlockingObstacleToSidePass(frame, obs, block_obs_min_speed,
+                                       min_front_sidepass_dis, true)) {
+        necessary_to_borrow_lane = true;
+        break;
+      }
     }
-    if (!IsSidePassableObstacle(reference_line_info)) {
+    if (!necessary_to_borrow_lane) {
       return false;
     }
 
