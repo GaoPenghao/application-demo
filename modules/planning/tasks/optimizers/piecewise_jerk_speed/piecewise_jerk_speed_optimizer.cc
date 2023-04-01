@@ -167,8 +167,14 @@ Status PiecewiseJerkSpeedOptimizer::Process(const PathData& path_data,
   piecewise_jerk_problem.set_penalty_dx(penalty_dx);
   piecewise_jerk_problem.set_dx_bounds(std::move(s_dot_bounds));
 
+  const auto qp_start = std::chrono::system_clock::now();
+  const auto qp_smooth_status = piecewise_jerk_problem.Optimize();
+  const auto qp_end = std::chrono::system_clock::now();
+  std::chrono::duration<double> qp_diff = qp_end - qp_start;
+  AINFO << "speed qp optimization takes " << qp_diff.count() * 1000.0 << " ms";
+
   // Solve the problem
-  if (!piecewise_jerk_problem.Optimize()) {
+  if (!qp_smooth_status) {
     const std::string msg = "Piecewise jerk speed optimizer failed!";
     AERROR << msg;
     speed_data->clear();

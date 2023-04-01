@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "modules/planning/common/speed/speed_data.h"
 #include "modules/planning/math/piecewise_jerk/piecewise_jerk_problem.h"
 
 namespace apollo {
@@ -56,7 +57,13 @@ class PiecewiseJerkSpeedProblem : public PiecewiseJerkProblem {
 
   void set_penalty_dx(std::vector<double> penalty_dx);
 
- protected:
+  void SetPrimalWarmStart(const SpeedData& speed_data,
+                          std::vector<c_float>* primal_warm_start);
+
+  bool OptimizeWithWarmStart(const std::vector<c_float>& primal_warm_start,
+                             OSQPWorkspace** work);
+
+  //  protected:
   // naming convention follows osqp solver.
   void CalculateKernel(std::vector<c_float>* P_data,
                        std::vector<c_int>* P_indices,

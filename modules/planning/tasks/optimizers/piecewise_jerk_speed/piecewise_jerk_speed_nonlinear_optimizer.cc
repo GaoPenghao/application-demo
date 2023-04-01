@@ -38,6 +38,7 @@
 #include "modules/planning/math/piecewise_jerk/piecewise_jerk_path_problem.h"
 #include "modules/planning/math/piecewise_jerk/piecewise_jerk_speed_problem.h"
 #include "modules/planning/tasks/optimizers/piecewise_jerk_speed/piecewise_jerk_speed_nonlinear_ipopt_interface.h"
+#include "modules/planning/tasks/optimizers/piecewise_jerk_speed/piecewise_jerk_speed_nonlinear_sqp_interface.h"
 
 namespace apollo {
 namespace planning {
@@ -136,10 +137,12 @@ Status PiecewiseJerkSpeedNonlinearOptimizer::Process(
 
     const auto nlp_smooth_status =
         OptimizeByNLP(&distance, &velocity, &acceleration);
+    // const auto nlp_smooth_status =
+    //     OptimizeBySQP(&distance, &velocity, &acceleration);
 
     const auto nlp_end = std::chrono::system_clock::now();
     std::chrono::duration<double> nlp_diff = nlp_end - nlp_start;
-    ADEBUG << "speed nlp optimization takes " << nlp_diff.count() * 1000.0
+    AINFO << "speed nlp optimization takes " << nlp_diff.count() * 1000.0
            << " ms";
 
     if (!nlp_smooth_status.ok()) {
@@ -619,5 +622,113 @@ Status PiecewiseJerkSpeedNonlinearOptimizer::OptimizeByNLP(
   debug.PrintToLog();
   return Status::OK();
 }
+
+Status PiecewiseJerkSpeedNonlinearOptimizer::OptimizeBySQP(
+    std::vector<double>* distance, std::vector<double>* velocity,
+    std::vector<double>* acceleration) {
+  static std::mutex mutex_tsqp;
+  UNIQUE_LOCK_MULTITHREAD(mutex_tsqp);
+  // Set optimizer instance
+  AINFO << "OptimizeBySQP fun start ...";
+  auto ptr_interface = std::make_shared<PiecewiseJerkSpeedNLP>(
+      s_init_, s_dot_init_, s_ddot_init_, delta_t_, num_of_knots_,
+      total_length_, s_dot_max_, s_ddot_min_, s_ddot_max_, s_dddot_min_,
+      s_dddot_max_);
+  PrintCurves debug;
+  ptr_interface->set_safety_bounds(s_bounds_);
+  for (size_t i = 0; i < s_bounds_.size(); i++) {
+    debug.AddPoint("st_bounds_lower", i * delta_t_, s_bounds_[i].first);
+    debug.AddPoint("st_bounds_upper", i * delta_t_, s_bounds_[i].second);
+  }
+  // Set weights and reference values
+  const auto& config =
+      config_.piecewise_jerk_nonlinear_speed_optimizer_config();
+
+  ptr_interface->set_curvature_curve(smoothed_path_curvature_);
+
+  // TODO(Hongyi): add debug_info for speed_limit fitting curve
+  ptr_interface->set_speed_limit_curve(smoothed_speed_limit_);
+
+  // TODO(Jinyun): refactor warms start setting API
+  if (config.use_warm_start()) {
+    const auto& warm_start_distance = *distance;
+    const auto& warm_start_velocity = *velocity;
+    const auto& warm_start_acceleration = *acceleration;
+    if (warm_start_distance.empty() || warm_start_velocity.empty() ||
+        warm_start_acceleration.empty() ||
+        warm_start_distance.size() != warm_start_velocity.size() ||
+        warm_start_velocity.size() != warm_start_acceleration.size()) {
+      const std::string msg =
+          "Piecewise jerk speed nonlinear optimizer warm start invalid!";
+      AERROR << msg;
+      return Status(ErrorCode::PLANNING_ERROR, msg);
+    }
+    std::vector<std::vector<double>> warm_start;
+    std::size_t size = warm_start_distance.size();
+    for (std::size_t i = 0; i < size; ++i) {
+      warm_start.emplace_back(std::initializer_list<double>(
+          {warm_start_distance[i], warm_start_velocity[i],
+           warm_start_acceleration[i]}));
+    }
+    ptr_interface->set_warm_start(warm_start);
+  }
+
+  if (FLAGS_use_smoothed_dp_guide_line) {
+    ptr_interface->set_reference_spatial_distance(*distance);
+    // TODO(Jinyun): move to confs
+    ptr_interface->set_w_reference_spatial_distance(10.0);
+  } else {
+    std::vector<double> spatial_potantial(num_of_knots_, total_length_);
+    ptr_interface->set_reference_spatial_distance(spatial_potantial);
+    ptr_interface->set_w_reference_spatial_distance(
+        config.s_potential_weight());
+  }
+
+  if (FLAGS_use_soft_bound_in_nonlinear_speed_opt) {
+    ptr_interface->set_soft_safety_bounds(s_soft_bounds_);
+    ptr_interface->set_w_soft_s_bound(config.soft_s_bound_weight());
+  }
+
+  ptr_interface->set_w_overall_a(config.acc_weight());
+  ptr_interface->set_w_overall_j(config.jerk_weight());
+  ptr_interface->set_w_overall_centripetal_acc(config.lat_acc_weight());
+
+  ptr_interface->set_reference_speed(cruise_speed_);
+  ptr_interface->set_w_reference_speed(config.ref_v_weight());
+
+  ptr_interface->init_nlp();
+  AINFO << "sqp problem initialized.";
+
+  Eigen::VectorXd x0, y0;
+  ptr_interface->get_starting_point(x0, y0);
+  AINFO << "got starting point.";
+
+  sqp::SQP<double> sqp_solver;
+
+  sqp_solver.settings().max_iter = 1;
+  sqp_solver.settings().second_order_correction = true;
+
+  const auto start_timestamp = std::chrono::system_clock::now();
+  AINFO << "start solveing sqp.";
+  sqp_solver.solve(*ptr_interface, x0, y0);
+  AINFO << "finish solving sqp.";
+  const auto end_timestamp = std::chrono::system_clock::now();
+  std::chrono::duration<double> diff = end_timestamp - start_timestamp;
+  ADEBUG << "*** The optimization problem take time: " << diff.count() * 1000.0
+         << " ms.";
+
+  auto x = sqp_solver.primal_solution();
+
+  ptr_interface->get_optimization_results(x, distance, velocity, acceleration);
+  for (size_t i = 0; i < distance->size(); i++) {
+    debug.AddPoint("optimize_st_curve", i * delta_t_, (*distance)[i]);
+    debug.AddPoint("optimize_vt_curve", i * delta_t_, (*velocity)[i]);
+    debug.AddPoint("optimize_at_curve", i * delta_t_, (*acceleration)[i]);
+    debug.AddPoint("optimize_sv_curve", (*distance)[i], (*velocity)[i]);
+  }
+  debug.PrintToLog();
+  return Status::OK();
+}
+
 }  // namespace planning
 }  // namespace apollo

@@ -116,7 +116,7 @@ class PiecewiseJerkProblem {
 
   const std::vector<double>& opt_ddx() const { return ddx_; }
 
- protected:
+  //  protected:
   // naming convention follows osqp solver.
   virtual void CalculateKernel(std::vector<c_float>* P_data,
                                std::vector<c_int>* P_indices,

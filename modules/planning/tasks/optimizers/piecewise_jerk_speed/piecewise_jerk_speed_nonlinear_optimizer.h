@@ -58,6 +58,10 @@ class PiecewiseJerkSpeedNonlinearOptimizer : public SpeedOptimizer {
                                std::vector<double>* velocity,
                                std::vector<double>* acceleration);
 
+  common::Status OptimizeBySQP(std::vector<double>* distance,
+                               std::vector<double>* velocity,
+                               std::vector<double>* acceleration);
+
   // st problem dimensions
   double delta_t_ = 0.0;
   double total_length_ = 0.0;

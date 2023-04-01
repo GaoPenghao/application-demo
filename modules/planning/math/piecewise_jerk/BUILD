@@ -32,6 +32,7 @@ cc_library(
     hdrs = ["piecewise_jerk_speed_problem.h"],
     deps = [
         ":piecewise_jerk_problem",
+        "//modules/planning/common/speed:speed_data"
     ],
 )
 

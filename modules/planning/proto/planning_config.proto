@@ -43,6 +43,7 @@ message TaskConfig {
     // other tasks
     LEARNING_MODEL_INFERENCE_TASK = 27;
     LEARNING_MODEL_INFERENCE_TRAJECTORY_TASK = 28;
+    PIECEWISE_JERK_SPEED_SQP_OPTIMIZER = 29;
   };
 
   optional TaskType task_type = 1;
@@ -77,6 +78,8 @@ message TaskConfig {
     LearningModelInferenceTaskConfig learning_model_inference_task_config = 22;
     LearningModelInferenceTrajectoryTaskConfig
         learning_model_inference_trajectory_task_config = 23;
+    PiecewiseJerkSpeedSQPOptimizerConfig 
+        piecewise_jerk_speed_sqp_optimizer_config = 24;
   }
 }
 

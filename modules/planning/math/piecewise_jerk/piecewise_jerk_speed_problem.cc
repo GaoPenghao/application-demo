@@ -157,5 +157,53 @@ OSQPSettings* PiecewiseJerkSpeedProblem::SolverDefaultSettings() {
   return settings;
 }
 
+void PiecewiseJerkSpeedProblem::SetPrimalWarmStart(
+    const SpeedData& speed_data, std::vector<c_float>* primal_warm_start) {
+  CHECK_EQ(speed_data.size(), num_of_knots_);
+  CHECK_GT(speed_data.size(), 1U);
+
+  std::size_t num_of_var = 3 * num_of_knots_;
+
+  // Set states
+  primal_warm_start->resize(num_of_var);
+  for (std::size_t i = 0; i < num_of_knots_; ++i) {
+    (*primal_warm_start)[i] = speed_data[i].s();
+    (*primal_warm_start)[num_of_knots_ + i] = speed_data[i].v();
+    (*primal_warm_start)[2 * num_of_knots_ + i] = speed_data[i].a();
+  }
+}
+
+bool PiecewiseJerkSpeedProblem::OptimizeWithWarmStart(
+    const std::vector<c_float>& primal_warm_start, OSQPWorkspace** work) {
+  osqp_warm_start_x(*work, primal_warm_start.data());
+
+  // Solve Problem
+  osqp_solve(*work);
+
+  auto status = (*work)->info->status_val;
+
+  if (status < 0) {
+    AERROR << "failed optimization status:\t" << (*work)->info->status;
+    return false;
+  }
+
+  if (status != 1 && status != 2) {
+    AERROR << "failed optimization status:\t" << (*work)->info->status;
+    return false;
+  }
+
+  // Extract primal results
+  x_.resize(num_of_knots_);
+  dx_.resize(num_of_knots_);
+  ddx_.resize(num_of_knots_);
+  for (size_t i = 0; i < num_of_knots_; ++i) {
+    x_.at(i) = (*work)->solution->x[i] / scale_factor_[0];
+    dx_.at(i) = (*work)->solution->x[i + num_of_knots_] / scale_factor_[1];
+    ddx_.at(i) = (*work)->solution->x[i + 2 * num_of_knots_] / scale_factor_[2];
+  }
+
+  return true;
+}
+
 }  // namespace planning
 }  // namespace apollo

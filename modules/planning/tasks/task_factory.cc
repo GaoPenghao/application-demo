@@ -46,6 +46,7 @@
 #include "modules/planning/tasks/optimizers/piecewise_jerk_path/piecewise_jerk_path_optimizer.h"
 #include "modules/planning/tasks/optimizers/piecewise_jerk_speed/piecewise_jerk_speed_nonlinear_optimizer.h"
 #include "modules/planning/tasks/optimizers/piecewise_jerk_speed/piecewise_jerk_speed_optimizer.h"
+#include "modules/planning/tasks/optimizers/piecewise_jerk_speed/piecewise_jerk_speed_sqp_optimizer.h"
 #include "modules/planning/tasks/task.h"
 
 namespace apollo {
@@ -208,6 +209,12 @@ void TaskFactory::Init(const PlanningConfig& config,
       [](const TaskConfig& config,
          const std::shared_ptr<DependencyInjector>& injector) -> Task* {
         return new PathTimeHeuristicOptimizer(config);
+      });
+  task_factory_.Register(
+      TaskConfig::PIECEWISE_JERK_SPEED_SQP_OPTIMIZER,
+      [](const TaskConfig& config,
+         const std::shared_ptr<DependencyInjector>& injector) -> Task* {
+        return new PiecewiseJerkSpeedSQPOptimizer(config);
       });
   ///////////////////////////
   // other tasks

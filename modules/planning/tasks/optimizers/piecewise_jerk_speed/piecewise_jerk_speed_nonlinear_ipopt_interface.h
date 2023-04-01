@@ -37,7 +37,7 @@ class PiecewiseJerkSpeedNonlinearIpoptInterface : public Ipopt::TNLP {
  public:
   PiecewiseJerkSpeedNonlinearIpoptInterface(
       const double s_init, const double s_dot_init, const double s_ddot_init,
-      const double delta_t, const int num_of_points, const double s_max_,
+      const double delta_t, const int num_of_points, const double s_max,
       const double s_dot_max, const double s_ddot_min, const double s_ddot_max,
       const double s_dddot_min, const double s_dddot_max);
 
