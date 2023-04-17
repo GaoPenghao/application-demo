@@ -75,8 +75,13 @@ def plot_st(lines, ax):
             if name in line:
                 get_data_from_line(line, elem_map[key])
     for key in elem_map.keys():
+        if key == 'warm_start_st':
+            continue
         if elem_map[key]:
-            ax["st"].plot(elem_map[key][0], elem_map[key][1],  '.-', label= key)
+            if key == 'dp_st_curve':
+                ax["st"].plot(elem_map[key][0], elem_map[key][1],  '-', label= 'search_st_curve')
+            else:
+                ax["st"].plot(elem_map[key][0], elem_map[key][1],  '-', label= key)
 
 def plot_vt(lines, ax):
     elem_map = {'optimize_vt_curve': [], 
@@ -89,8 +94,10 @@ def plot_vt(lines, ax):
             if name in line:
                 get_data_from_line(line, elem_map[key])
     for key in elem_map.keys():
+        if key == "warm_start_vt":
+            continue
         if elem_map[key]:
-            ax["vt"].plot(elem_map[key][0], elem_map[key][1],  '.-', label= key)
+            ax["vt"].plot(elem_map[key][0], elem_map[key][1],  '-', label= key)
 def plot_at(lines, ax):
     elem_map = {'optimize_at_curve': [],
                                 'warm_start_at':[]}
@@ -100,8 +107,10 @@ def plot_at(lines, ax):
             if name in line:
                 get_data_from_line(line, elem_map[key])
     for key in elem_map.keys():
+        if key == 'warm_start_at':
+            continue
         if elem_map[key]:
-            ax["at"].plot(elem_map[key][0], elem_map[key][1], '.-', label= key)
+            ax["at"].plot(elem_map[key][0], elem_map[key][1], '-', label= key)
 def plot_sv(lines, ax):
     elem_map = {'coarse_v_bounds_upper': [],
                                 'sv_boundary_lower': [],
@@ -139,8 +148,8 @@ def plot_frame(fig, ax, lines, line_st_num, line_ed_num):
         valid_lines.append(lines[i])
 
     # plot curve from point vectors
-    ax_title = 'seq: ' + frame_seq
-    fig.suptitle(ax_title)
+    # ax_title = 'seq: ' + frame_seq
+    # fig.title('st_optimize')
     for value in ax.values():
         value.lines = []
         value.texts = []
@@ -350,24 +359,25 @@ if __name__ == '__main__':
     ax['sv'] = fig.add_subplot(gs[3,0])
     ax['sk'] = fig.add_subplot(gs[4,0], sharex=ax['sv'])
     plot_frame(fig, ax, lines, line_st_num, line_ed_num)
-  
-    callback = Index(fig, ax, line_st_num, line_ed_num, lines)
-    prev1frame =  plt.axes([0.2, 0.01, 0.1, 0.05])
-    prev10frame = plt.axes([0.3, 0.01, 0.1, 0.05])
-    next1frame =  plt.axes([0.4, 0.01, 0.1, 0.05])
-    next10frame = plt.axes([0.5, 0.01, 0.1, 0.05])
-    exitframe =   plt.axes([0.6, 0.01, 0.1, 0.05])
-    bprev1 = Button(prev1frame, '-1')
-    bprev1.on_clicked(callback.prev1)
-    bprev10 = Button(prev10frame, '-10')
-    bprev10.on_clicked(callback.prev10)
-    bnext1 = Button(next1frame, '+1')
-    bnext1.on_clicked(callback.next1)
-    bnext10 = Button(next10frame, '+10')
-    bnext10.on_clicked(callback.next10)
-    bexit = Button(exitframe, 'exit')
-    bexit.on_clicked(callback.exit)
-    plt.gca().xaxis.set_major_formatter(ticker.FormatStrFormatter('%.6f'))
-    plt.gca().yaxis.set_major_formatter(ticker.FormatStrFormatter('%.6f'))
     plt.show()
-    plt.ion()
+  
+    # callback = Index(fig, ax, line_st_num, line_ed_num, lines)
+    # prev1frame =  plt.axes([0.2, 0.01, 0.1, 0.05])
+    # prev10frame = plt.axes([0.3, 0.01, 0.1, 0.05])
+    # next1frame =  plt.axes([0.4, 0.01, 0.1, 0.05])
+    # next10frame = plt.axes([0.5, 0.01, 0.1, 0.05])
+    # exitframe =   plt.axes([0.6, 0.01, 0.1, 0.05])
+    # bprev1 = Button(prev1frame, '-1')
+    # bprev1.on_clicked(callback.prev1)
+    # bprev10 = Button(prev10frame, '-10')
+    # bprev10.on_clicked(callback.prev10)
+    # bnext1 = Button(next1frame, '+1')
+    # bnext1.on_clicked(callback.next1)
+    # bnext10 = Button(next10frame, '+10')
+    # bnext10.on_clicked(callback.next10)
+    # bexit = Button(exitframe, 'exit')
+    # bexit.on_clicked(callback.exit)
+    # plt.gca().xaxis.set_major_formatter(ticker.FormatStrFormatter('%.6f'))
+    # plt.gca().yaxis.set_major_formatter(ticker.FormatStrFormatter('%.6f'))
+    # plt.show()
+    # plt.ion()

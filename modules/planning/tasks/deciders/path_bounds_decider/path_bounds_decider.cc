@@ -1612,7 +1612,7 @@ std::vector<ObstacleEdge> PathBoundsDecider::SortObstaclesForSweepLine(
         const double cruise_speed = reference_line_info_->GetCruiseSpeed();
         AINFO << "cruise speed = " << cruise_speed;
         double acc_t =
-            cruise_speed / FLAGS_longitudinal_acceleration_upper_bound;
+            (cruise_speed - init_speed) / FLAGS_longitudinal_acceleration_upper_bound;
         double acc_s = 0.5 * acc_t * (init_speed + cruise_speed);
         if (delta_t < acc_t) {
           adc_s = init_speed * delta_t +

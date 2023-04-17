@@ -61,6 +61,8 @@ def plot_frame(fig, ax, lines, line_st_num, line_ed_num):
             plotter[tag][1].append(float(pt[1]))
        
     for tag in plotter.keys():
+        if 'self' in tag or 'veh' in tag:
+            continue
         if len(plotter[tag][0]) > 0:
             print(tag,plotter[tag])
             ax.plot(plotter[tag][0],
@@ -68,10 +70,10 @@ def plot_frame(fig, ax, lines, line_st_num, line_ed_num):
     
     # plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
     ax.legend()
-    plt.rcParams['figure.figsize'] = (30, 4)
+    plt.rcParams['figure.figsize'] = (30, 5)
     plt.title('sl_path')
-    plt.xlabel('X')
-    plt.ylabel('Y')
+    plt.xlabel('S/m')
+    plt.ylabel('L/m')
     plt.axis('equal')
     plt.grid(True)
     plt.show()

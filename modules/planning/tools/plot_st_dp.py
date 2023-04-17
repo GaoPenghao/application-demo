@@ -65,17 +65,23 @@ def get_data_from_line(line, data):
         data.append(y)
 def plot_st(lines, ax):
     elem_map = {'dp_st_boundary': [], 'dp_node_edge': [], 'dp_result':[]}
+    skip = False
     for line in lines:
+        if skip:
+            skip = False
+            continue
         for key in elem_map.keys():
             name = "print_" + key + ":"
             if name in line:
                 get_data_from_line(line, elem_map[key])
                 if key == 'dp_st_boundary' and elem_map[key]:
-                    ax["st"].plot(elem_map["dp_st_boundary"][0], elem_map["dp_st_boundary"][1], linestyle = '-', label= "dp_st_boundary")
+                    ax["st"].plot(elem_map["dp_st_boundary"][0], elem_map["dp_st_boundary"][1], linestyle = '-', label= "obs_boundary")
+                    skip = True
+
     if elem_map["dp_result"]:
-        ax["st"].plot(elem_map["dp_result"][0], elem_map["dp_result"][1], linestyle = '-', label= "dp_result")
-    if elem_map["dp_node_edge"]:
-        ax["st"].plot(elem_map["dp_node_edge"][0], elem_map["dp_node_edge"][1], 'o')
+        ax["st"].plot(elem_map["dp_result"][0], elem_map["dp_result"][1], linestyle = '-', label= "search_result")
+    # if elem_map["dp_node_edge"]:
+    #     ax["st"].plot(elem_map["dp_node_edge"][0], elem_map["dp_node_edge"][1], 'o')
 
 
 
@@ -140,8 +146,9 @@ def plot_frame(fig, ax, lines, line_st_num, line_ed_num):
         valid_lines.append(lines[i])
 
     # plot curve from point vectors
-    ax_title = 'seq: ' + frame_seq
-    fig.suptitle(ax_title)
+    # ax_title = 'seq: ' + frame_seq
+    # fig.suptitle(ax_title)
+    plt.title('st_search')
     for value in ax.values():
         value.lines = []
         value.texts = []
@@ -153,6 +160,8 @@ def plot_frame(fig, ax, lines, line_st_num, line_ed_num):
     #ax.set_aspect(1)
     
     plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
+    plt.xlabel('T/s')
+    plt.ylabel('S/m')
 
     plt.draw()
 
@@ -287,24 +296,25 @@ if __name__ == '__main__':
     ax = {}
     ax['st'] = fig.add_subplot()
     plot_frame(fig, ax, lines, line_st_num, line_ed_num)
-  
-    callback = Index(fig, ax, line_st_num, line_ed_num, lines)
-    prev1frame =  plt.axes([0.2, 0.01, 0.1, 0.05])
-    prev10frame = plt.axes([0.3, 0.01, 0.1, 0.05])
-    next1frame =  plt.axes([0.4, 0.01, 0.1, 0.05])
-    next10frame = plt.axes([0.5, 0.01, 0.1, 0.05])
-    exitframe =   plt.axes([0.6, 0.01, 0.1, 0.05])
-    bprev1 = Button(prev1frame, '-1')
-    bprev1.on_clicked(callback.prev1)
-    bprev10 = Button(prev10frame, '-10')
-    bprev10.on_clicked(callback.prev10)
-    bnext1 = Button(next1frame, '+1')
-    bnext1.on_clicked(callback.next1)
-    bnext10 = Button(next10frame, '+10')
-    bnext10.on_clicked(callback.next10)
-    bexit = Button(exitframe, 'exit')
-    bexit.on_clicked(callback.exit)
-    plt.gca().xaxis.set_major_formatter(ticker.FormatStrFormatter('%.6f'))
-    plt.gca().yaxis.set_major_formatter(ticker.FormatStrFormatter('%.6f'))
     plt.show()
-    plt.ion()
+  
+    # callback = Index(fig, ax, line_st_num, line_ed_num, lines)
+    # prev1frame =  plt.axes([0.2, 0.01, 0.1, 0.05])
+    # prev10frame = plt.axes([0.3, 0.01, 0.1, 0.05])
+    # next1frame =  plt.axes([0.4, 0.01, 0.1, 0.05])
+    # next10frame = plt.axes([0.5, 0.01, 0.1, 0.05])
+    # exitframe =   plt.axes([0.6, 0.01, 0.1, 0.05])
+    # bprev1 = Button(prev1frame, '-1')
+    # bprev1.on_clicked(callback.prev1)
+    # bprev10 = Button(prev10frame, '-10')
+    # bprev10.on_clicked(callback.prev10)
+    # bnext1 = Button(next1frame, '+1')
+    # bnext1.on_clicked(callback.next1)
+    # bnext10 = Button(next10frame, '+10')
+    # bnext10.on_clicked(callback.next10)
+    # bexit = Button(exitframe, 'exit')
+    # bexit.on_clicked(callback.exit)
+    # plt.gca().xaxis.set_major_formatter(ticker.FormatStrFormatter('%.6f'))
+    # plt.gca().yaxis.set_major_formatter(ticker.FormatStrFormatter('%.6f'))
+    # plt.show()
+    # plt.ion()
