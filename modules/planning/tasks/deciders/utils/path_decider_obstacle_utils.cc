@@ -35,10 +35,15 @@ bool IsWithinPathDeciderScopeObstacle(const Obstacle& obstacle) {
       obstacle.IsIgnore()) {
     return false;
   }
-  // Obstacle's speed should be lower than default_cruise_speed
-  if (obstacle.speed() > FLAGS_default_cruise_speed) {
+  // Obstacle should not be moving obstacle.
+  if (!obstacle.IsStatic() ||
+      obstacle.speed() > FLAGS_static_obstacle_speed_threshold) {
     return false;
   }
+  // // Obstacle's speed should be lower than default_cruise_speed
+  // if (obstacle.speed() > FLAGS_default_cruise_speed) {
+  //   return false;
+  // }
   // TODO(jiacheng):
   // Some obstacles are not moving, but only because they are waiting for
   // red light (traffic rule) or because they are blocked by others (social).
